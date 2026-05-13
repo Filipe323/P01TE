@@ -1,4 +1,3 @@
-
 import SpriteKit
 
 class GameScene: SKScene {
@@ -7,32 +6,19 @@ class GameScene: SKScene {
     private let cameraNode = SKCameraNode()
 
     private let gridNode = SKShapeNode()
-    private let player = SKShapeNode(circleOfRadius: 22)
-
-    private let joystickBase = SKShapeNode(circleOfRadius: 55)
-    private let joystickKnob = SKShapeNode(circleOfRadius: 25)
-
-    private let attackButton = SKShapeNode(circleOfRadius: 45)
-    private let attackLabel = SKLabelNode(text: "ATK")
-
-    private let xpLabel = SKLabelNode(text: "XP: 0")
-
-    private let healthBarBackground = SKShapeNode(rectOf: CGSize(width: 220, height: 12), cornerRadius: 6)
-    private let healthBarFill = SKShapeNode(rectOf: CGSize(width: 220, height: 12), cornerRadius: 6)
+    private let player = PlayerNode()
+    private let controls = TouchControlsNode()
+    private let hud = GameHUDNode()
 
     private var joystickTouch: UITouch?
     private var attackTouch: UITouch?
 
-    private var joystickCenter = CGPoint.zero
     private var moveVector = CGVector.zero
+    private var enemies: [EnemyNode] = []
 
-    private var enemies: [SKShapeNode] = []
-    private var spawnTimer: TimeInterval = 0
-    private var wave = 1
     private var xp = 0
+    private var nextBuffXP = 100
 
-    private var playerHealth: CGFloat = 100
-    private let maxPlayerHealth: CGFloat = 100
     private let enemyDamage: CGFloat = 15
     private let enemyHitRadius: CGFloat = 40
     private let hitCooldown: TimeInterval = 0.75
@@ -40,9 +26,15 @@ class GameScene: SKScene {
 
     private let playerSpeed: CGFloat = 230
     private let enemySpeed: CGFloat = 90
-    private let attackRadius: CGFloat = 70
+    private let attackRange: CGFloat = 95
+    private let attackAngle: CGFloat = .pi / 2.6
 
+    private var spawnTimer: TimeInterval = 0
+    private var survivalTime: TimeInterval = 0
     private var lastUpdateTime: TimeInterval = 0
+
+    private var isGameOver = false
+    private var isChoosingBuff = false
 
     override func didMove(to view: SKView) {
         backgroundColor = SKColor(red: 0.10, green: 0.12, blue: 0.15, alpha: 1)
@@ -52,18 +44,24 @@ class GameScene: SKScene {
         camera = cameraNode
 
         setupGrid()
-        setupPlayer()
-        setupJoystick()
-        setupAttackButton()
-        setupHUD()
-        setupHealthBar()
-        layoutControls()
+        worldNode.addChild(player)
+
+        cameraNode.addChild(controls)
+        cameraNode.addChild(hud)
+
+        layoutInterface()
+        hud.updateHealth(current: player.health, max: player.maxHealth)
 
         cameraNode.position = player.position
     }
 
     override func didChangeSize(_ oldSize: CGSize) {
-        layoutControls()
+        layoutInterface()
+    }
+
+    private func layoutInterface() {
+        controls.layout(sceneSize: size)
+        hud.layout(sceneSize: size)
     }
 
     private func setupGrid() {
@@ -93,97 +91,29 @@ class GameScene: SKScene {
         worldNode.addChild(gridNode)
     }
 
-    private func setupPlayer() {
-        player.fillColor = .systemBlue
-        player.strokeColor = .white
-        player.lineWidth = 3
-        player.zPosition = 10
-        player.position = .zero
-        worldNode.addChild(player)
-    }
-
-    private func setupJoystick() {
-        joystickBase.fillColor = SKColor.white.withAlphaComponent(0.15)
-        joystickBase.strokeColor = SKColor.white.withAlphaComponent(0.35)
-        joystickBase.lineWidth = 3
-        joystickBase.zPosition = 100
-        cameraNode.addChild(joystickBase)
-
-        joystickKnob.fillColor = SKColor.white.withAlphaComponent(0.45)
-        joystickKnob.strokeColor = .white
-        joystickKnob.lineWidth = 2
-        joystickKnob.zPosition = 101
-        cameraNode.addChild(joystickKnob)
-    }
-
-    private func setupAttackButton() {
-        attackButton.fillColor = SKColor.systemRed.withAlphaComponent(0.7)
-        attackButton.strokeColor = .white
-        attackButton.lineWidth = 3
-        attackButton.zPosition = 100
-        cameraNode.addChild(attackButton)
-
-        attackLabel.fontName = "AvenirNext-Bold"
-        attackLabel.fontSize = 18
-        attackLabel.fontColor = .white
-        attackLabel.verticalAlignmentMode = .center
-        attackLabel.zPosition = 101
-        cameraNode.addChild(attackLabel)
-    }
-
-    private func setupHUD() {
-        xpLabel.fontName = "AvenirNext-Bold"
-        xpLabel.fontSize = 22
-        xpLabel.fontColor = .white
-        xpLabel.horizontalAlignmentMode = .left
-        xpLabel.verticalAlignmentMode = .top
-        xpLabel.zPosition = 100
-        cameraNode.addChild(xpLabel)
-    }
-
-    private func setupHealthBar() {
-        healthBarBackground.fillColor = SKColor.black.withAlphaComponent(0.35)
-        healthBarBackground.strokeColor = SKColor.white.withAlphaComponent(0.25)
-        healthBarBackground.lineWidth = 1
-        healthBarBackground.zPosition = 100
-        cameraNode.addChild(healthBarBackground)
-
-        healthBarFill.fillColor = SKColor.systemGreen.withAlphaComponent(0.85)
-        healthBarFill.strokeColor = .clear
-        healthBarFill.zPosition = 101
-        cameraNode.addChild(healthBarFill)
-    }
-
-    private func layoutControls() {
-        let halfWidth = size.width / 2
-        let halfHeight = size.height / 2
-
-        joystickCenter = CGPoint(x: -halfWidth + 115, y: -halfHeight + 95)
-        joystickBase.position = joystickCenter
-        joystickKnob.position = joystickCenter
-
-        let attackPosition = CGPoint(x: halfWidth - 115, y: -halfHeight + 95)
-        attackButton.position = attackPosition
-        attackLabel.position = attackPosition
-
-        xpLabel.position = CGPoint(x: -halfWidth + 25, y: halfHeight - 25)
-
-        let healthPosition = CGPoint(x: 0, y: -halfHeight + 28)
-        healthBarBackground.position = healthPosition
-        healthBarFill.position = healthPosition
-    }
-
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         for touch in touches {
             let location = touch.location(in: cameraNode)
 
-            if joystickBase.contains(location), joystickTouch == nil {
+            if isGameOver {
+                if hud.isRestartHit(location) {
+                    restartGame()
+                }
+                continue
+            }
+
+            if isChoosingBuff {
+                handleBuffTouch(location)
+                continue
+            }
+
+            if controls.isJoystickHit(location), joystickTouch == nil {
                 joystickTouch = touch
                 updateJoystick(with: location)
                 continue
             }
 
-            if attackButton.contains(location), attackTouch == nil {
+            if controls.isAttackHit(location), attackTouch == nil {
                 attackTouch = touch
                 performAttack()
                 continue
@@ -192,6 +122,8 @@ class GameScene: SKScene {
     }
 
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        if isGameOver || isChoosingBuff { return }
+
         for touch in touches where touch == joystickTouch {
             updateJoystick(with: touch.location(in: cameraNode))
         }
@@ -210,7 +142,7 @@ class GameScene: SKScene {
             if touch == joystickTouch {
                 joystickTouch = nil
                 moveVector = .zero
-                joystickKnob.position = joystickCenter
+                controls.resetJoystick()
             }
 
             if touch == attackTouch {
@@ -220,70 +152,146 @@ class GameScene: SKScene {
     }
 
     private func updateJoystick(with location: CGPoint) {
-        let dx = location.x - joystickCenter.x
-        let dy = location.y - joystickCenter.y
+        let result = controls.updateJoystick(with: location)
+        moveVector = result.move
 
-        let distance = sqrt(dx * dx + dy * dy)
-        let maxDistance: CGFloat = 45
-
-        guard distance > 0 else {
-            moveVector = .zero
-            return
+        if let facing = result.facing {
+            player.facingVector = facing
         }
-
-        let clampedDistance = min(distance, maxDistance)
-        let angle = atan2(dy, dx)
-
-        joystickKnob.position = CGPoint(
-            x: joystickCenter.x + cos(angle) * clampedDistance,
-            y: joystickCenter.y + sin(angle) * clampedDistance
-        )
-
-        moveVector = CGVector(
-            dx: cos(angle) * (clampedDistance / maxDistance),
-            dy: sin(angle) * (clampedDistance / maxDistance)
-        )
     }
 
     private func performAttack() {
-        let attackRange = SKShapeNode(circleOfRadius: attackRadius)
-        attackRange.position = player.position
-        attackRange.strokeColor = .systemRed
-        attackRange.fillColor = SKColor.systemRed.withAlphaComponent(0.18)
-        attackRange.lineWidth = 4
-        attackRange.zPosition = 50
-        worldNode.addChild(attackRange)
+        let attackEffect = createAttackCone()
+        worldNode.addChild(attackEffect)
 
-        attackRange.run(.sequence([
-            .scale(to: 1.25, duration: 0.08),
-            .fadeOut(withDuration: 0.12),
+        attackEffect.run(.sequence([
+            .fadeOut(withDuration: 0.16),
             .removeFromParent()
         ]))
 
-        attackButton.run(.sequence([
-            .scale(to: 0.88, duration: 0.05),
-            .scale(to: 1.0, duration: 0.08)
-        ]))
-
-        killEnemiesInRange()
+        controls.pulseAttackButton()
+        damageEnemiesInAttackCone()
     }
 
-    private func spawnWave() {
-        let enemyCount = min(3 + wave, 12)
+    private func createAttackCone() -> SKShapeNode {
+        let directionAngle = atan2(player.facingVector.dy, player.facingVector.dx)
+        let startAngle = directionAngle - attackAngle / 2
+        let endAngle = directionAngle + attackAngle / 2
 
-        for _ in 0..<enemyCount {
-            spawnEnemy()
+        let path = CGMutablePath()
+        path.move(to: player.position)
+
+        let steps = 16
+        for i in 0...steps {
+            let progress = CGFloat(i) / CGFloat(steps)
+            let angle = startAngle + (endAngle - startAngle) * progress
+
+            path.addLine(to: CGPoint(
+                x: player.position.x + cos(angle) * attackRange,
+                y: player.position.y + sin(angle) * attackRange
+            ))
         }
 
-        wave += 1
+        path.closeSubpath()
+
+        let cone = SKShapeNode(path: path)
+        cone.fillColor = SKColor.systemRed.withAlphaComponent(0.20)
+        cone.strokeColor = SKColor.systemRed.withAlphaComponent(0.85)
+        cone.lineWidth = 3
+        cone.zPosition = 50
+        return cone
+    }
+
+    private func damageEnemiesInAttackCone() {
+        var deadEnemies: [EnemyNode] = []
+
+        for enemy in enemies {
+            guard isEnemyInsideAttackCone(enemy) else { continue }
+
+            if enemy.takeDamage(player.damage) {
+                deadEnemies.append(enemy)
+            }
+        }
+
+        for enemy in deadEnemies {
+            enemy.removeFromParent()
+            enemies.removeAll { $0 == enemy }
+
+            xp += 10
+            hud.updateXP(xp)
+        }
+
+        checkForBuffChoice()
+    }
+
+    private func isEnemyInsideAttackCone(_ enemy: EnemyNode) -> Bool {
+        let dx = enemy.position.x - player.position.x
+        let dy = enemy.position.y - player.position.y
+        let distance = sqrt(dx * dx + dy * dy)
+
+        guard distance <= attackRange, distance > 0 else {
+            return false
+        }
+
+        let enemyDirection = CGVector(dx: dx / distance, dy: dy / distance)
+        let dot = player.facingVector.dx * enemyDirection.dx + player.facingVector.dy * enemyDirection.dy
+        let angleToEnemy = acos(max(-1, min(1, dot)))
+
+        return angleToEnemy <= attackAngle / 2
+    }
+
+    private func checkForBuffChoice() {
+        if xp >= nextBuffXP && !isChoosingBuff {
+            isChoosingBuff = true
+            moveVector = .zero
+            controls.resetJoystick()
+            hud.showBuffChoice(sceneSize: size)
+        }
+    }
+
+    private func handleBuffTouch(_ location: CGPoint) {
+        guard let choice = hud.buffChoice(at: location) else { return }
+
+        switch choice {
+        case .damage:
+            player.damage += 1
+
+        case .health:
+            player.healAndIncreaseMaxHealth(25)
+            hud.updateHealth(current: player.health, max: player.maxHealth)
+        }
+
+        nextBuffXP += 100
+        isChoosingBuff = false
+        hud.hideBuffChoice()
+    }
+
+    private func currentSpawnInterval() -> TimeInterval {
+        max(0.55, 3.0 - survivalTime * 0.035)
+    }
+
+    private func currentMaxEnemies() -> Int {
+        min(45, 5 + Int(survivalTime / 12))
+    }
+
+    private func currentEnemyHealth() -> CGFloat {
+        CGFloat(1 + Int(survivalTime / 45))
+    }
+
+    private func updateSpawning(deltaTime: TimeInterval) {
+        spawnTimer += deltaTime
+
+        if spawnTimer >= currentSpawnInterval() {
+            spawnTimer = 0
+
+            if enemies.count < currentMaxEnemies() {
+                spawnEnemy()
+            }
+        }
     }
 
     private func spawnEnemy() {
-        let enemy = SKShapeNode(circleOfRadius: 18)
-        enemy.fillColor = .systemGreen
-        enemy.strokeColor = .white
-        enemy.lineWidth = 2
-        enemy.zPosition = 9
+        let enemy = EnemyNode(health: currentEnemyHealth())
         enemy.position = randomSpawnPosition()
         worldNode.addChild(enemy)
         enemies.append(enemy)
@@ -338,75 +346,47 @@ class GameScene: SKScene {
 
             if distance <= enemyHitRadius {
                 lastHitTime = currentTime
-                damagePlayer()
+
+                if player.takeDamage(enemyDamage) {
+                    gameOver()
+                }
+
+                hud.updateHealth(current: player.health, max: player.maxHealth)
                 return
             }
         }
     }
 
-    private func damagePlayer() {
-        playerHealth = max(0, playerHealth - enemyDamage)
-        updateHealthBar()
-
-        player.run(.sequence([
-            .colorize(with: .systemRed, colorBlendFactor: 0.9, duration: 0.06),
-            .colorize(withColorBlendFactor: 0, duration: 0.12)
-        ]))
-
-        if playerHealth <= 0 {
-            gameOver()
-        }
-    }
-
-    private func updateHealthBar() {
-        let healthPercent = max(0, playerHealth / maxPlayerHealth)
-        healthBarFill.xScale = healthPercent
-
-        if healthPercent > 0.55 {
-            healthBarFill.fillColor = SKColor.systemGreen.withAlphaComponent(0.85)
-        } else if healthPercent > 0.25 {
-            healthBarFill.fillColor = SKColor.systemYellow.withAlphaComponent(0.9)
-        } else {
-            healthBarFill.fillColor = SKColor.systemRed.withAlphaComponent(0.9)
-        }
-    }
-
     private func gameOver() {
+        isGameOver = true
         moveVector = .zero
-        joystickKnob.position = joystickCenter
-
-        let gameOverLabel = SKLabelNode(text: "GAME OVER")
-        gameOverLabel.fontName = "AvenirNext-Bold"
-        gameOverLabel.fontSize = 42
-        gameOverLabel.fontColor = .white
-        gameOverLabel.verticalAlignmentMode = .center
-        gameOverLabel.zPosition = 200
-        gameOverLabel.position = .zero
-        cameraNode.addChild(gameOverLabel)
-
-        isPaused = true
+        controls.resetJoystick()
+        hud.showGameOver()
     }
 
-    private func killEnemiesInRange() {
-        var killedEnemies: [SKShapeNode] = []
-
+    private func restartGame() {
         for enemy in enemies {
-            let dx = enemy.position.x - player.position.x
-            let dy = enemy.position.y - player.position.y
-            let distance = sqrt(dx * dx + dy * dy)
-
-            if distance <= attackRadius {
-                killedEnemies.append(enemy)
-            }
-        }
-
-        for enemy in killedEnemies {
             enemy.removeFromParent()
-            enemies.removeAll { $0 == enemy }
-
-            xp += 10
-            xpLabel.text = "XP: \(xp)"
         }
+
+        enemies.removeAll()
+
+        xp = 0
+        nextBuffXP = 100
+        spawnTimer = 0
+        survivalTime = 0
+        lastUpdateTime = 0
+        lastHitTime = 0
+        isGameOver = false
+        isChoosingBuff = false
+        moveVector = .zero
+
+        player.reset()
+        cameraNode.position = player.position
+        controls.resetJoystick()
+
+        hud.reset()
+        hud.updateHealth(current: player.health, max: player.maxHealth)
     }
 
     private func updateCamera() {
@@ -430,11 +410,11 @@ class GameScene: SKScene {
         let deltaTime = currentTime - lastUpdateTime
         lastUpdateTime = currentTime
 
-        spawnTimer += deltaTime
-        if spawnTimer >= 4 {
-            spawnTimer = 0
-            spawnWave()
-        }
+        if isGameOver || isChoosingBuff { return }
+
+        survivalTime += deltaTime
+        hud.updateTimer(survivalTime)
+        updateSpawning(deltaTime: deltaTime)
 
         player.position.x += moveVector.dx * playerSpeed * CGFloat(deltaTime)
         player.position.y += moveVector.dy * playerSpeed * CGFloat(deltaTime)
