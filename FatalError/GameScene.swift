@@ -14,19 +14,21 @@ class GameScene: SKScene {
     private var attackTouch: UITouch?
 
     private var moveVector = CGVector.zero
+    private var attackAimVector: CGVector?
+    private var attackPreview: SKShapeNode?
+
     private var enemies: [EnemyNode] = []
 
     private var xp = 0
+    private var buffLevel = 1
     private var nextBuffXP = 100
 
     private let enemyDamage: CGFloat = 15
     private let enemyHitRadius: CGFloat = 40
-    private let hitCooldown: TimeInterval = 0.75
-    private var lastHitTime: TimeInterval = 0
 
     private let playerSpeed: CGFloat = 230
     private let enemySpeed: CGFloat = 90
-    private let attackRange: CGFloat = 95
+    private var attackRange: CGFloat = 95
     private let attackAngle: CGFloat = .pi / 2.6
 
     private var spawnTimer: TimeInterval = 0
@@ -115,7 +117,9 @@ class GameScene: SKScene {
 
             if controls.isAttackHit(location), attackTouch == nil {
                 attackTouch = touch
-                performAttack()
+                attackAimVector = player.facingVector
+                updateAttackAim(with: location)
+                showAttackPreview(direction: attackAimVector ?? player.facingVector)
                 continue
             }
         }
@@ -124,8 +128,15 @@ class GameScene: SKScene {
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
         if isGameOver || isChoosingBuff { return }
 
-        for touch in touches where touch == joystickTouch {
-            updateJoystick(with: touch.location(in: cameraNode))
+        for touch in touches {
+            if touch == joystickTouch {
+                updateJoystick(with: touch.location(in: cameraNode))
+            }
+
+            if touch == attackTouch {
+                updateAttackAim(with: touch.location(in: cameraNode))
+                showAttackPreview(direction: attackAimVector ?? player.facingVector)
+            }
         }
     }
 
@@ -146,7 +157,13 @@ class GameScene: SKScene {
             }
 
             if touch == attackTouch {
+                let direction = attackAimVector ?? player.facingVector
+                hideAttackPreview()
+                performAttack(direction: direction)
+
                 attackTouch = nil
+                attackAimVector = nil
+                controls.resetAttackAim()
             }
         }
     }
@@ -160,8 +177,37 @@ class GameScene: SKScene {
         }
     }
 
-    private func performAttack() {
-        let attackEffect = createAttackCone()
+    private func updateAttackAim(with location: CGPoint) {
+        if let aim = controls.updateAttackAim(with: location) {
+            attackAimVector = aim
+        }
+    }
+
+    private func showAttackPreview(direction: CGVector) {
+        if attackPreview == nil {
+            let preview = SKShapeNode()
+            preview.fillColor = SKColor.systemRed.withAlphaComponent(0.08)
+            preview.strokeColor = SKColor.systemRed.withAlphaComponent(0.35)
+            preview.lineWidth = 2
+            preview.zPosition = 45
+            worldNode.addChild(preview)
+            attackPreview = preview
+        }
+
+        attackPreview?.path = makeAttackConePath(direction: direction)
+    }
+
+    private func hideAttackPreview() {
+        attackPreview?.removeFromParent()
+        attackPreview = nil
+    }
+
+    private func performAttack(direction: CGVector) {
+        if isGameOver || isChoosingBuff { return }
+
+        player.facingVector = direction
+
+        let attackEffect = createAttackCone(direction: direction)
         worldNode.addChild(attackEffect)
 
         attackEffect.run(.sequence([
@@ -169,12 +215,12 @@ class GameScene: SKScene {
             .removeFromParent()
         ]))
 
-        controls.pulseAttackButton()
-        damageEnemiesInAttackCone()
+        controls.pulseAttackControl()
+        damageEnemiesInAttackCone(direction: direction)
     }
 
-    private func createAttackCone() -> SKShapeNode {
-        let directionAngle = atan2(player.facingVector.dy, player.facingVector.dx)
+    private func makeAttackConePath(direction: CGVector) -> CGPath {
+        let directionAngle = atan2(direction.dy, direction.dx)
         let startAngle = directionAngle - attackAngle / 2
         let endAngle = directionAngle + attackAngle / 2
 
@@ -193,8 +239,11 @@ class GameScene: SKScene {
         }
 
         path.closeSubpath()
+        return path
+    }
 
-        let cone = SKShapeNode(path: path)
+    private func createAttackCone(direction: CGVector) -> SKShapeNode {
+        let cone = SKShapeNode(path: makeAttackConePath(direction: direction))
         cone.fillColor = SKColor.systemRed.withAlphaComponent(0.20)
         cone.strokeColor = SKColor.systemRed.withAlphaComponent(0.85)
         cone.lineWidth = 3
@@ -202,11 +251,11 @@ class GameScene: SKScene {
         return cone
     }
 
-    private func damageEnemiesInAttackCone() {
+    private func damageEnemiesInAttackCone(direction: CGVector) {
         var deadEnemies: [EnemyNode] = []
 
         for enemy in enemies {
-            guard isEnemyInsideAttackCone(enemy) else { continue }
+            guard isEnemyInsideAttackCone(enemy, direction: direction) else { continue }
 
             if enemy.takeDamage(player.damage) {
                 deadEnemies.append(enemy)
@@ -224,27 +273,38 @@ class GameScene: SKScene {
         checkForBuffChoice()
     }
 
-    private func isEnemyInsideAttackCone(_ enemy: EnemyNode) -> Bool {
+    private func isEnemyInsideAttackCone(_ enemy: EnemyNode, direction: CGVector) -> Bool {
         let dx = enemy.position.x - player.position.x
         let dy = enemy.position.y - player.position.y
         let distance = sqrt(dx * dx + dy * dy)
 
-        guard distance <= attackRange, distance > 0 else {
+        guard distance > 0 else {
+            return false
+        }
+
+        let enemyRadius = EnemyNode.radius
+
+        if distance > attackRange + enemyRadius {
             return false
         }
 
         let enemyDirection = CGVector(dx: dx / distance, dy: dy / distance)
-        let dot = player.facingVector.dx * enemyDirection.dx + player.facingVector.dy * enemyDirection.dy
+        let dot = direction.dx * enemyDirection.dx + direction.dy * enemyDirection.dy
         let angleToEnemy = acos(max(-1, min(1, dot)))
 
-        return angleToEnemy <= attackAngle / 2
+        let angleMargin = atan2(enemyRadius, distance)
+        let allowedAngle = attackAngle / 2 + angleMargin
+
+        return angleToEnemy <= allowedAngle
     }
 
     private func checkForBuffChoice() {
         if xp >= nextBuffXP && !isChoosingBuff {
             isChoosingBuff = true
             moveVector = .zero
+            hideAttackPreview()
             controls.resetJoystick()
+            controls.resetAttackAim()
             hud.showBuffChoice(sceneSize: size)
         }
     }
@@ -254,14 +314,17 @@ class GameScene: SKScene {
 
         switch choice {
         case .damage:
-            player.damage += 1
+            player.damage += 0.5
+            attackRange += 8
 
         case .health:
-            player.healAndIncreaseMaxHealth(25)
+            player.applyHealthBuff()
             hud.updateHealth(current: player.health, max: player.maxHealth)
         }
 
-        nextBuffXP += 100
+        buffLevel += 1
+        nextBuffXP += buffLevel * 100
+
         isChoosingBuff = false
         hud.hideBuffChoice()
     }
@@ -334,10 +397,8 @@ class GameScene: SKScene {
         }
     }
 
-    private func checkEnemyHits(currentTime: TimeInterval) {
-        guard currentTime - lastHitTime >= hitCooldown else {
-            return
-        }
+    private func checkEnemyHits() {
+        var enemiesThatHitPlayer: [EnemyNode] = []
 
         for enemy in enemies {
             let dx = enemy.position.x - player.position.x
@@ -345,22 +406,30 @@ class GameScene: SKScene {
             let distance = sqrt(dx * dx + dy * dy)
 
             if distance <= enemyHitRadius {
-                lastHitTime = currentTime
-
-                if player.takeDamage(enemyDamage) {
-                    gameOver()
-                }
-
-                hud.updateHealth(current: player.health, max: player.maxHealth)
-                return
+                enemiesThatHitPlayer.append(enemy)
             }
+        }
+
+        for enemy in enemiesThatHitPlayer {
+            enemy.removeFromParent()
+            enemies.removeAll { $0 == enemy }
+
+            if player.takeDamage(enemyDamage) {
+                gameOver()
+                break
+            }
+
+            hud.updateHealth(current: player.health, max: player.maxHealth)
         }
     }
 
     private func gameOver() {
         isGameOver = true
         moveVector = .zero
+        attackAimVector = nil
+        hideAttackPreview()
         controls.resetJoystick()
+        controls.resetAttackAim()
         hud.showGameOver()
     }
 
@@ -372,18 +441,23 @@ class GameScene: SKScene {
         enemies.removeAll()
 
         xp = 0
+        buffLevel = 1
         nextBuffXP = 100
+        attackRange = 95
         spawnTimer = 0
         survivalTime = 0
         lastUpdateTime = 0
-        lastHitTime = 0
         isGameOver = false
         isChoosingBuff = false
         moveVector = .zero
+        attackAimVector = nil
+
+        hideAttackPreview()
 
         player.reset()
         cameraNode.position = player.position
         controls.resetJoystick()
+        controls.resetAttackAim()
 
         hud.reset()
         hud.updateHealth(current: player.health, max: player.maxHealth)
@@ -421,7 +495,12 @@ class GameScene: SKScene {
 
         updateCamera()
         updateGrid()
+
+        if let direction = attackAimVector {
+            showAttackPreview(direction: direction)
+        }
+
         updateEnemies(deltaTime: deltaTime)
-        checkEnemyHits(currentTime: currentTime)
+        checkEnemyHits()
     }
 }

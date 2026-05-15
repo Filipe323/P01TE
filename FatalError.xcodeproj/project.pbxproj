@@ -11,6 +11,7 @@
 		0586CFC02FB492E5002C5ADE /* EnemyNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0586CFBF2FB492E5002C5ADE /* EnemyNode.swift */; };
 		0586CFC22FB492FC002C5ADE /* TouchControlsNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0586CFC12FB492FC002C5ADE /* TouchControlsNode.swift */; };
 		0586CFC42FB49312002C5ADE /* GameHUDNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0586CFC32FB49312002C5ADE /* GameHUDNode.swift */; };
+		0587E0062FB7155900540CA7 /* MainMenuScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0587E0052FB7155900540CA7 /* MainMenuScene.swift */; };
 		05C290692FAB544900224A60 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05C290682FAB544900224A60 /* AppDelegate.swift */; };
 		05C2906B2FAB544900224A60 /* GameScene.sks in Resources */ = {isa = PBXBuildFile; fileRef = 05C2906A2FAB544900224A60 /* GameScene.sks */; };
 		05C2906D2FAB544900224A60 /* Actions.sks in Resources */ = {isa = PBXBuildFile; fileRef = 05C2906C2FAB544900224A60 /* Actions.sks */; };
@@ -46,6 +47,7 @@
 		0586CFBF2FB492E5002C5ADE /* EnemyNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnemyNode.swift; sourceTree = "<group>"; };
 		0586CFC12FB492FC002C5ADE /* TouchControlsNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TouchControlsNode.swift; sourceTree = "<group>"; };
 		0586CFC32FB49312002C5ADE /* GameHUDNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameHUDNode.swift; sourceTree = "<group>"; };
+		0587E0052FB7155900540CA7 /* MainMenuScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainMenuScene.swift; sourceTree = "<group>"; };
 		05C290652FAB544900224A60 /* FatalError.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FatalError.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		05C290682FAB544900224A60 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		05C2906A2FAB544900224A60 /* GameScene.sks */ = {isa = PBXFileReference; lastKnownFileType = file.sks; path = GameScene.sks; sourceTree = "<group>"; };
@@ -122,6 +124,7 @@
 				0586CFBF2FB492E5002C5ADE /* EnemyNode.swift */,
 				0586CFC12FB492FC002C5ADE /* TouchControlsNode.swift */,
 				0586CFC32FB49312002C5ADE /* GameHUDNode.swift */,
+				0587E0052FB7155900540CA7 /* MainMenuScene.swift */,
 			);
 			path = FatalError;
 			sourceTree = "<group>";
@@ -282,6 +285,7 @@
 				05C290712FAB544900224A60 /* GameViewController.swift in Sources */,
 				0586CFBE2FB492C5002C5ADE /* PlayerNode.swift in Sources */,
 				05C290692FAB544900224A60 /* AppDelegate.swift in Sources */,
+				0587E0062FB7155900540CA7 /* MainMenuScene.swift in Sources */,
 				0586CFC22FB492FC002C5ADE /* TouchControlsNode.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

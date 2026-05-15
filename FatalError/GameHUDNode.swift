@@ -13,6 +13,8 @@ final class GameHUDNode: SKNode {
     private let healthBarBackground = SKShapeNode(rectOf: CGSize(width: 220, height: 12), cornerRadius: 6)
     private let healthBarFill = SKSpriteNode(color: .systemGreen, size: CGSize(width: 220, height: 10))
 
+    private let dangerBorder = SKShapeNode()
+
     private var gameOverLabel: SKLabelNode?
     private var restartButton: SKShapeNode?
     private var restartLabel: SKLabelNode?
@@ -27,12 +29,22 @@ final class GameHUDNode: SKNode {
     override init() {
         super.init()
 
+        setupDangerBorder()
         setupLabels()
         setupHealthBar()
     }
 
     required init?(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+
+    private func setupDangerBorder() {
+        dangerBorder.strokeColor = SKColor.systemRed.withAlphaComponent(0.75)
+        dangerBorder.fillColor = .clear
+        dangerBorder.lineWidth = 14
+        dangerBorder.zPosition = 90
+        dangerBorder.alpha = 0
+        addChild(dangerBorder)
     }
 
     private func setupLabels() {
@@ -75,6 +87,17 @@ final class GameHUDNode: SKNode {
         let healthPosition = CGPoint(x: 0, y: -halfHeight + 28)
         healthBarBackground.position = healthPosition
         healthBarFill.position = CGPoint(x: healthPosition.x - 110, y: healthPosition.y)
+
+        let borderInset: CGFloat = 7
+        dangerBorder.path = CGPath(
+            rect: CGRect(
+                x: -halfWidth + borderInset,
+                y: -halfHeight + borderInset,
+                width: sceneSize.width - borderInset * 2,
+                height: sceneSize.height - borderInset * 2
+            ),
+            transform: nil
+        )
     }
 
     func updateXP(_ xp: Int) {
@@ -99,9 +122,28 @@ final class GameHUDNode: SKNode {
         } else {
             healthBarFill.color = .systemRed
         }
+
+        updateDangerBorder(healthPercent: healthPercent)
+    }
+
+    private func updateDangerBorder(healthPercent: CGFloat) {
+        if healthPercent <= 0.25 && healthPercent > 0 {
+            if dangerBorder.action(forKey: "dangerPulse") == nil {
+                dangerBorder.run(.repeatForever(.sequence([
+                    .fadeAlpha(to: 0.85, duration: 0.35),
+                    .fadeAlpha(to: 0.25, duration: 0.45)
+                ])), withKey: "dangerPulse")
+            }
+        } else {
+            dangerBorder.removeAction(forKey: "dangerPulse")
+            dangerBorder.run(.fadeAlpha(to: 0, duration: 0.18))
+        }
     }
 
     func showGameOver() {
+        dangerBorder.removeAction(forKey: "dangerPulse")
+        dangerBorder.alpha = 0
+
         let label = SKLabelNode(text: "GAME OVER")
         label.fontName = "AvenirNext-Bold"
         label.fontSize = 42
@@ -165,18 +207,18 @@ final class GameHUDNode: SKNode {
         addChild(title)
         buffTitleLabel = title
 
-        let damageButton = SKShapeNode(rectOf: CGSize(width: 230, height: 70), cornerRadius: 12)
+        let damageButton = SKShapeNode(rectOf: CGSize(width: 250, height: 70), cornerRadius: 12)
         damageButton.fillColor = SKColor.systemRed.withAlphaComponent(0.9)
         damageButton.strokeColor = .white
         damageButton.lineWidth = 2
         damageButton.zPosition = 251
-        damageButton.position = CGPoint(x: -135, y: -20)
+        damageButton.position = CGPoint(x: -145, y: -20)
         addChild(damageButton)
         damageBuffButton = damageButton
 
-        let damageLabel = SKLabelNode(text: "+ Dano")
+        let damageLabel = SKLabelNode(text: "+ Dano/Range")
         damageLabel.fontName = "AvenirNext-Bold"
-        damageLabel.fontSize = 24
+        damageLabel.fontSize = 22
         damageLabel.fontColor = .white
         damageLabel.verticalAlignmentMode = .center
         damageLabel.zPosition = 252
@@ -189,7 +231,7 @@ final class GameHUDNode: SKNode {
         healthButton.strokeColor = .white
         healthButton.lineWidth = 2
         healthButton.zPosition = 251
-        healthButton.position = CGPoint(x: 135, y: -20)
+        healthButton.position = CGPoint(x: 145, y: -20)
         addChild(healthButton)
         healthBuffButton = healthButton
 
@@ -237,5 +279,7 @@ final class GameHUDNode: SKNode {
         hideBuffChoice()
         updateXP(0)
         updateTimer(0)
+        dangerBorder.removeAction(forKey: "dangerPulse")
+        dangerBorder.alpha = 0
     }
 }

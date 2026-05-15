@@ -48,9 +48,13 @@ final class PlayerNode: SKShapeNode {
         return health <= 0
     }
 
-    func healAndIncreaseMaxHealth(_ amount: CGFloat) {
-        maxHealth += amount
-        health = min(maxHealth, health + amount)
+    func applyHealthBuff() {
+        if health >= maxHealth {
+            maxHealth += 20
+            health = maxHealth
+        } else {
+            health = min(maxHealth, health + 35)
+        }
     }
 
     private func flashDamage() {
