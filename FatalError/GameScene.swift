@@ -1,6 +1,6 @@
 import SpriteKit
 
-class GameScene: SKScene {
+final class GameScene: SKScene {
 
     private let worldNode = SKNode()
     private let cameraNode = SKCameraNode()
@@ -18,6 +18,8 @@ class GameScene: SKScene {
     private var attackPreview: SKShapeNode?
 
     private var enemies: [EnemyNode] = []
+    
+    private let waveManager = WaveManager()
 
     private var xp = 0
     private var buffLevel = 1
@@ -31,12 +33,12 @@ class GameScene: SKScene {
     private var attackRange: CGFloat = 95
     private let attackAngle: CGFloat = .pi / 2.6
 
-    private var spawnTimer: TimeInterval = 0
-    private var survivalTime: TimeInterval = 0
     private var lastUpdateTime: TimeInterval = 0
+    private var survivalTime: TimeInterval = 0
 
     private var isGameOver = false
     private var isChoosingBuff = false
+    private var isGamePaused = false
 
     override func didMove(to view: SKView) {
         backgroundColor = SKColor(red: 0.10, green: 0.12, blue: 0.15, alpha: 1)
@@ -55,6 +57,8 @@ class GameScene: SKScene {
         hud.updateHealth(current: player.health, max: player.maxHealth)
 
         cameraNode.position = player.position
+        
+        setupWaveManagerCallbacks()
     }
 
     override func didChangeSize(_ oldSize: CGSize) {
@@ -92,15 +96,42 @@ class GameScene: SKScene {
         gridNode.zPosition = -100
         worldNode.addChild(gridNode)
     }
+    
+    private func setupWaveManagerCallbacks() {
+        waveManager.onSpawnEnemy = { [weak self] in
+            self?.spawnEnemy()
+        }
+        waveManager.onNewWaveStart = { waveNumber in
+            print("A começar a Wave \(waveNumber)!")
+        }
+        waveManager.onWaveComplete = { waveNumber in
+            print("Wave \(waveNumber) concluída! Tempo de descanso...")
+        }
+    }
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         for touch in touches {
             let location = touch.location(in: cameraNode)
 
             if isGameOver {
-                if hud.isRestartHit(location) {
-                    restartGame()
+                if hud.isRestartHit(location) { restartGame() }
+                continue
+            }
+            
+            // Interceta os toques se o jogo estiver em pausa
+            if isGamePaused {
+                if let choice = hud.pauseChoice(at: location) {
+                    switch choice {
+                    case .resume: resumeGame()
+                    case .quit: quitToMenu()
+                    }
                 }
+                continue
+            }
+
+            // Verifica se o jogador carregou no botão de pausa
+            if hud.isPauseHit(location) {
+                pauseGame()
                 continue
             }
 
@@ -126,7 +157,7 @@ class GameScene: SKScene {
     }
 
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
-        if isGameOver || isChoosingBuff { return }
+        if isGameOver || isChoosingBuff || isGamePaused { return }
 
         for touch in touches {
             if touch == joystickTouch {
@@ -159,7 +190,10 @@ class GameScene: SKScene {
             if touch == attackTouch {
                 let direction = attackAimVector ?? player.facingVector
                 hideAttackPreview()
-                performAttack(direction: direction)
+                
+                if !isGamePaused {
+                    performAttack(direction: direction)
+                }
 
                 attackTouch = nil
                 attackAimVector = nil
@@ -194,7 +228,12 @@ class GameScene: SKScene {
             attackPreview = preview
         }
 
-        attackPreview?.path = makeAttackConePath(direction: direction)
+        attackPreview?.path = AttackCone.path(
+            origin: player.position,
+            direction: direction,
+            range: attackRange,
+            angle: attackAngle
+        )
     }
 
     private func hideAttackPreview() {
@@ -219,31 +258,15 @@ class GameScene: SKScene {
         damageEnemiesInAttackCone(direction: direction)
     }
 
-    private func makeAttackConePath(direction: CGVector) -> CGPath {
-        let directionAngle = atan2(direction.dy, direction.dx)
-        let startAngle = directionAngle - attackAngle / 2
-        let endAngle = directionAngle + attackAngle / 2
-
-        let path = CGMutablePath()
-        path.move(to: player.position)
-
-        let steps = 16
-        for i in 0...steps {
-            let progress = CGFloat(i) / CGFloat(steps)
-            let angle = startAngle + (endAngle - startAngle) * progress
-
-            path.addLine(to: CGPoint(
-                x: player.position.x + cos(angle) * attackRange,
-                y: player.position.y + sin(angle) * attackRange
-            ))
-        }
-
-        path.closeSubpath()
-        return path
-    }
-
     private func createAttackCone(direction: CGVector) -> SKShapeNode {
-        let cone = SKShapeNode(path: makeAttackConePath(direction: direction))
+        let path = AttackCone.path(
+            origin: player.position,
+            direction: direction,
+            range: attackRange,
+            angle: attackAngle
+        )
+
+        let cone = SKShapeNode(path: path)
         cone.fillColor = SKColor.systemRed.withAlphaComponent(0.20)
         cone.strokeColor = SKColor.systemRed.withAlphaComponent(0.85)
         cone.lineWidth = 3
@@ -255,7 +278,16 @@ class GameScene: SKScene {
         var deadEnemies: [EnemyNode] = []
 
         for enemy in enemies {
-            guard isEnemyInsideAttackCone(enemy, direction: direction) else { continue }
+            let isInsideCone = AttackCone.contains(
+                point: enemy.position,
+                pointRadius: EnemyNode.radius,
+                origin: player.position,
+                direction: direction,
+                range: attackRange,
+                angle: attackAngle
+            )
+
+            guard isInsideCone else { continue }
 
             if enemy.takeDamage(player.damage) {
                 deadEnemies.append(enemy)
@@ -268,34 +300,10 @@ class GameScene: SKScene {
 
             xp += 10
             hud.updateXP(xp)
+            waveManager.reportEnemyRemoved()
         }
 
         checkForBuffChoice()
-    }
-
-    private func isEnemyInsideAttackCone(_ enemy: EnemyNode, direction: CGVector) -> Bool {
-        let dx = enemy.position.x - player.position.x
-        let dy = enemy.position.y - player.position.y
-        let distance = sqrt(dx * dx + dy * dy)
-
-        guard distance > 0 else {
-            return false
-        }
-
-        let enemyRadius = EnemyNode.radius
-
-        if distance > attackRange + enemyRadius {
-            return false
-        }
-
-        let enemyDirection = CGVector(dx: dx / distance, dy: dy / distance)
-        let dot = direction.dx * enemyDirection.dx + direction.dy * enemyDirection.dy
-        let angleToEnemy = acos(max(-1, min(1, dot)))
-
-        let angleMargin = atan2(enemyRadius, distance)
-        let allowedAngle = attackAngle / 2 + angleMargin
-
-        return angleToEnemy <= allowedAngle
     }
 
     private func checkForBuffChoice() {
@@ -329,59 +337,14 @@ class GameScene: SKScene {
         hud.hideBuffChoice()
     }
 
-    private func currentSpawnInterval() -> TimeInterval {
-        max(0.55, 3.0 - survivalTime * 0.035)
-    }
-
-    private func currentMaxEnemies() -> Int {
-        min(45, 5 + Int(survivalTime / 12))
-    }
-
-    private func currentEnemyHealth() -> CGFloat {
-        CGFloat(1 + Int(survivalTime / 45))
-    }
-
-    private func updateSpawning(deltaTime: TimeInterval) {
-        spawnTimer += deltaTime
-
-        if spawnTimer >= currentSpawnInterval() {
-            spawnTimer = 0
-
-            if enemies.count < currentMaxEnemies() {
-                spawnEnemy()
-            }
-        }
-    }
-
     private func spawnEnemy() {
-        let enemy = EnemyNode(health: currentEnemyHealth())
-        enemy.position = randomSpawnPosition()
+        let enemy = EnemyNode(health: EnemySpawner.enemyHealth(wave: waveManager.currentWave))
+        enemy.position = EnemySpawner.spawnPosition(
+            cameraPosition: cameraNode.position,
+            sceneSize: size
+        )
         worldNode.addChild(enemy)
         enemies.append(enemy)
-    }
-
-    private func randomSpawnPosition() -> CGPoint {
-        let side = Int.random(in: 0...3)
-        let padding: CGFloat = 100
-
-        let cameraX = cameraNode.position.x
-        let cameraY = cameraNode.position.y
-
-        let left = cameraX - size.width / 2 - padding
-        let right = cameraX + size.width / 2 + padding
-        let bottom = cameraY - size.height / 2 - padding
-        let top = cameraY + size.height / 2 + padding
-
-        switch side {
-        case 0:
-            return CGPoint(x: left, y: CGFloat.random(in: bottom...top))
-        case 1:
-            return CGPoint(x: right, y: CGFloat.random(in: bottom...top))
-        case 2:
-            return CGPoint(x: CGFloat.random(in: left...right), y: top)
-        default:
-            return CGPoint(x: CGFloat.random(in: left...right), y: bottom)
-        }
     }
 
     private func updateEnemies(deltaTime: TimeInterval) {
@@ -413,6 +376,7 @@ class GameScene: SKScene {
         for enemy in enemiesThatHitPlayer {
             enemy.removeFromParent()
             enemies.removeAll { $0 == enemy }
+            waveManager.reportEnemyRemoved()
 
             if player.takeDamage(enemyDamage) {
                 gameOver()
@@ -431,29 +395,62 @@ class GameScene: SKScene {
         controls.resetJoystick()
         controls.resetAttackAim()
         hud.showGameOver()
+        
+        let bestTime = UserDefaults.standard.double(forKey: "BestSurvivalTime")
+        if survivalTime > bestTime {
+            UserDefaults.standard.set(survivalTime, forKey: "BestSurvivalTime")
+        }
+    }
+    
+    // MARK: - Funções de Pausa (Corrigidas!)
+    
+    private func pauseGame() {
+        isGamePaused = true
+        moveVector = .zero
+        attackAimVector = nil
+        hideAttackPreview()
+        joystickTouch = nil
+        attackTouch = nil
+        controls.resetJoystick()
+        controls.resetAttackAim()
+        hud.showPauseMenu(sceneSize: size)
+    }
+
+    private func resumeGame() {
+        isGamePaused = false
+        hud.hidePauseMenu() // <-- Adicionado! Remove os botões e o fundo preto do ecrã
+        lastUpdateTime = 0  // Evita o avanço abrupto do delta time após a pausa
+    }
+
+    private func quitToMenu() {
+        let bestTime = UserDefaults.standard.double(forKey: "BestSurvivalTime")
+        if survivalTime > bestTime {
+            UserDefaults.standard.set(survivalTime, forKey: "BestSurvivalTime")
+        }
+        
+        let menuScene = MainMenuScene(size: size)
+        menuScene.scaleMode = scaleMode
+        let transition = SKTransition.fade(withDuration: 0.35)
+        view?.presentScene(menuScene, transition: transition)
     }
 
     private func restartGame() {
-        for enemy in enemies {
-            enemy.removeFromParent()
-        }
-
+        for enemy in enemies { enemy.removeFromParent() }
         enemies.removeAll()
 
         xp = 0
         buffLevel = 1
         nextBuffXP = 100
         attackRange = 95
-        spawnTimer = 0
-        survivalTime = 0
         lastUpdateTime = 0
+        survivalTime = 0
         isGameOver = false
         isChoosingBuff = false
+        isGamePaused = false
         moveVector = .zero
         attackAimVector = nil
 
         hideAttackPreview()
-
         player.reset()
         cameraNode.position = player.position
         controls.resetJoystick()
@@ -461,6 +458,7 @@ class GameScene: SKScene {
 
         hud.reset()
         hud.updateHealth(current: player.health, max: player.maxHealth)
+        waveManager.reset()
     }
 
     private func updateCamera() {
@@ -469,13 +467,12 @@ class GameScene: SKScene {
 
     private func updateGrid() {
         let gridSize: CGFloat = 80
-
         gridNode.position = CGPoint(
             x: round(player.position.x / gridSize) * gridSize,
             y: round(player.position.y / gridSize) * gridSize
         )
     }
-
+    
     override func update(_ currentTime: TimeInterval) {
         if lastUpdateTime == 0 {
             lastUpdateTime = currentTime
@@ -484,11 +481,12 @@ class GameScene: SKScene {
         let deltaTime = currentTime - lastUpdateTime
         lastUpdateTime = currentTime
 
-        if isGameOver || isChoosingBuff { return }
-
+        if isGameOver || isChoosingBuff || isGamePaused { return }
+        
         survivalTime += deltaTime
         hud.updateTimer(survivalTime)
-        updateSpawning(deltaTime: deltaTime)
+
+        waveManager.update(deltaTime: deltaTime)
 
         player.position.x += moveVector.dx * playerSpeed * CGFloat(deltaTime)
         player.position.y += moveVector.dy * playerSpeed * CGFloat(deltaTime)

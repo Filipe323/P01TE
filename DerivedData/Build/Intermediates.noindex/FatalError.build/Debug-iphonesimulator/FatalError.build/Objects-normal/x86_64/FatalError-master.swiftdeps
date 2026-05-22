@@ -1,0 +1,19 @@
+version: "Apple Swift version 5.7.2 (swiftlang-5.7.2.135.5 clang-1400.0.29.51)"
+options: "d8441142dd51591825e5e4120501e2a01ba5de03aadbfa9a8a8dd096dffeb108"
+build_start_time: [1779439672, 217856884]
+build_end_time: [1779439672, 274742126]
+inputs:
+  "/Users/a27927/Desktop/P01TE-main/FatalError/AppDelegate.swift": !private [1779408884, 0]
+  "/Users/a27927/Desktop/P01TE-main/FatalError/EnemyNode.swift": !private [1779408884, 0]
+  "/Users/a27927/Desktop/P01TE-main/FatalError/GameHUDNode.swift": !private [1779408884, 0]
+  "/Users/a27927/Desktop/P01TE-main/FatalError/GameScene+Combat.swift": !private [1779439607, 413391590]
+  "/Users/a27927/Desktop/P01TE-main/FatalError/GameScene+Enemies.swift": !private [1779439607, 598128795]
+  "/Users/a27927/Desktop/P01TE-main/FatalError/GameScene+Input.swift": !private [1779439607, 320701599]
+  "/Users/a27927/Desktop/P01TE-main/FatalError/GameScene+Progression.swift": !private [1779439607, 505635738]
+  "/Users/a27927/Desktop/P01TE-main/FatalError/GameScene+State.swift": !private [1779439607, 785582542]
+  "/Users/a27927/Desktop/P01TE-main/FatalError/GameScene+World.swift": !private [1779439607, 692573070]
+  "/Users/a27927/Desktop/P01TE-main/FatalError/GameScene.swift": !private [1779439607, 228179216]
+  "/Users/a27927/Desktop/P01TE-main/FatalError/GameViewController.swift": !private [1779408884, 0]
+  "/Users/a27927/Desktop/P01TE-main/FatalError/MainMenuScene.swift": !private [1779408884, 0]
+  "/Users/a27927/Desktop/P01TE-main/FatalError/PlayerNode.swift": !private [1779408884, 0]
+  "/Users/a27927/Desktop/P01TE-main/FatalError/TouchControlsNode.swift": !private [1779408884, 0]

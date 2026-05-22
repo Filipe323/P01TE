@@ -5,6 +5,11 @@ enum BuffChoice {
     case health
 }
 
+enum PauseChoice {
+    case resume
+    case quit
+}
+
 final class GameHUDNode: SKNode {
 
     private let xpLabel = SKLabelNode(text: "XP: 0")
@@ -12,8 +17,14 @@ final class GameHUDNode: SKNode {
 
     private let healthBarBackground = SKShapeNode(rectOf: CGSize(width: 220, height: 12), cornerRadius: 6)
     private let healthBarFill = SKSpriteNode(color: .systemGreen, size: CGSize(width: 220, height: 10))
-
     private let dangerBorder = SKShapeNode()
+
+    // UI da Pausa
+    private let pauseButton = SKShapeNode(rectOf: CGSize(width: 44, height: 44), cornerRadius: 8)
+    private let pauseIcon = SKLabelNode(text: "II")
+    private var pauseOverlay: SKShapeNode?
+    private var resumeButton: SKShapeNode?
+    private var quitMenuButton: SKShapeNode?
 
     private var gameOverLabel: SKLabelNode?
     private var restartButton: SKShapeNode?
@@ -32,6 +43,7 @@ final class GameHUDNode: SKNode {
         setupDangerBorder()
         setupLabels()
         setupHealthBar()
+        setupPauseButton()
     }
 
     required init?(coder aDecoder: NSCoder) {
@@ -76,6 +88,21 @@ final class GameHUDNode: SKNode {
         healthBarFill.zPosition = 101
         addChild(healthBarFill)
     }
+    
+    private func setupPauseButton() {
+        pauseButton.fillColor = SKColor.white.withAlphaComponent(0.15)
+        pauseButton.strokeColor = SKColor.white.withAlphaComponent(0.4)
+        pauseButton.lineWidth = 1.5
+        pauseButton.zPosition = 100
+        addChild(pauseButton)
+        
+        pauseIcon.fontName = "AvenirNext-Bold"
+        pauseIcon.fontSize = 18
+        pauseIcon.fontColor = .white
+        pauseIcon.verticalAlignmentMode = .center
+        pauseIcon.zPosition = 101
+        addChild(pauseIcon)
+    }
 
     func layout(sceneSize: CGSize) {
         let halfWidth = sceneSize.width / 2
@@ -83,6 +110,9 @@ final class GameHUDNode: SKNode {
 
         xpLabel.position = CGPoint(x: -halfWidth + 25, y: halfHeight - 25)
         timerLabel.position = CGPoint(x: halfWidth - 25, y: halfHeight - 25)
+
+        pauseButton.position = CGPoint(x: 0, y: halfHeight - 35)
+        pauseIcon.position = pauseButton.position
 
         let healthPosition = CGPoint(x: 0, y: -halfHeight + 28)
         healthBarBackground.position = healthPosition
@@ -98,6 +128,10 @@ final class GameHUDNode: SKNode {
             ),
             transform: nil
         )
+    }
+    
+    func isPauseHit(_ location: CGPoint) -> Bool {
+        pauseButton.contains(location)
     }
 
     func updateXP(_ xp: Int) {
@@ -138,6 +172,86 @@ final class GameHUDNode: SKNode {
             dangerBorder.removeAction(forKey: "dangerPulse")
             dangerBorder.run(.fadeAlpha(to: 0, duration: 0.18))
         }
+    }
+
+    // MARK: - Menus Overlays (Corrigido para limpar tudo via Name)
+    
+    func showPauseMenu(sceneSize: CGSize) {
+        let overlay = SKShapeNode(rectOf: sceneSize)
+        overlay.fillColor = SKColor.black.withAlphaComponent(0.75)
+        overlay.strokeColor = .clear
+        overlay.zPosition = 300
+        overlay.position = .zero
+        overlay.name = "pauseNode" // Identificador para remoção
+        addChild(overlay)
+        pauseOverlay = overlay
+
+        let title = SKLabelNode(text: "JOGO EM PAUSA")
+        title.fontName = "AvenirNext-Bold"
+        title.fontSize = 36
+        title.fontColor = .white
+        title.verticalAlignmentMode = .center
+        title.zPosition = 301
+        title.position = CGPoint(x: 0, y: 70)
+        title.name = "pauseNode"
+        addChild(title)
+        
+        let resume = SKShapeNode(rectOf: CGSize(width: 220, height: 60), cornerRadius: 12)
+        resume.fillColor = SKColor.systemBlue.withAlphaComponent(0.9)
+        resume.strokeColor = .white
+        resume.lineWidth = 2
+        resume.zPosition = 301
+        resume.position = CGPoint(x: 0, y: -10)
+        resume.name = "pauseNode"
+        addChild(resume)
+        resumeButton = resume
+        
+        let resumeLabel = SKLabelNode(text: "CONTINUAR")
+        resumeLabel.fontName = "AvenirNext-Bold"
+        resumeLabel.fontSize = 20
+        resumeLabel.fontColor = .white
+        resumeLabel.verticalAlignmentMode = .center
+        resumeLabel.zPosition = 302
+        resumeLabel.position = resume.position
+        resumeLabel.name = "pauseNode"
+        addChild(resumeLabel)
+
+        let quit = SKShapeNode(rectOf: CGSize(width: 220, height: 60), cornerRadius: 12)
+        quit.fillColor = SKColor.systemRed.withAlphaComponent(0.8)
+        quit.strokeColor = .white
+        quit.lineWidth = 2
+        quit.zPosition = 301
+        quit.position = CGPoint(x: 0, y: -85)
+        quit.name = "pauseNode"
+        addChild(quit)
+        quitMenuButton = quit
+
+        let quitLabel = SKLabelNode(text: "SAIR PARA O MENU")
+        quitLabel.fontName = "AvenirNext-Bold"
+        quitLabel.fontSize = 18
+        quitLabel.fontColor = .white
+        quitLabel.verticalAlignmentMode = .center
+        quitLabel.zPosition = 302
+        quitLabel.position = quit.position
+        quitLabel.name = "pauseNode"
+        addChild(quitLabel)
+    }
+    
+    func hidePauseMenu() {
+        // Procura e remove do ecrã absolutamente tudo o que se chama "pauseNode"
+        self.enumerateChildNodes(withName: "pauseNode") { node, _ in
+            node.removeFromParent()
+        }
+        
+        pauseOverlay = nil
+        resumeButton = nil
+        quitMenuButton = nil
+    }
+    
+    func pauseChoice(at location: CGPoint) -> PauseChoice? {
+        if resumeButton?.contains(location) == true { return .resume }
+        if quitMenuButton?.contains(location) == true { return .quit }
+        return nil
     }
 
     func showGameOver() {
@@ -182,7 +296,6 @@ final class GameHUDNode: SKNode {
         gameOverLabel?.removeFromParent()
         restartButton?.removeFromParent()
         restartLabel?.removeFromParent()
-
         gameOverLabel = nil
         restartButton = nil
         restartLabel = nil
@@ -247,14 +360,8 @@ final class GameHUDNode: SKNode {
     }
 
     func buffChoice(at location: CGPoint) -> BuffChoice? {
-        if damageBuffButton?.contains(location) == true {
-            return .damage
-        }
-
-        if healthBuffButton?.contains(location) == true {
-            return .health
-        }
-
+        if damageBuffButton?.contains(location) == true { return .damage }
+        if healthBuffButton?.contains(location) == true { return .health }
         return nil
     }
 
@@ -277,6 +384,7 @@ final class GameHUDNode: SKNode {
     func reset() {
         hideGameOver()
         hideBuffChoice()
+        hidePauseMenu()
         updateXP(0)
         updateTimer(0)
         dangerBorder.removeAction(forKey: "dangerPulse")

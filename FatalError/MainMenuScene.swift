@@ -3,6 +3,8 @@ import SpriteKit
 final class MainMenuScene: SKScene {
 
     private let titleLabel = SKLabelNode(text: "Fatal Error")
+    private let bestTimeLabel = SKLabelNode(text: "Melhor Tempo: 00:00")
+    
     private let playButton = SKShapeNode(rectOf: CGSize(width: 230, height: 64), cornerRadius: 14)
     private let playLabel = SKLabelNode(text: "JOGAR")
 
@@ -13,6 +15,7 @@ final class MainMenuScene: SKScene {
         backgroundColor = SKColor(red: 0.09, green: 0.11, blue: 0.15, alpha: 1)
 
         setupTitle()
+        setupBestTime()
         setupPlayButton()
         setupQuitButton()
         layoutMenu()
@@ -29,6 +32,20 @@ final class MainMenuScene: SKScene {
         titleLabel.verticalAlignmentMode = .center
         titleLabel.zPosition = 10
         addChild(titleLabel)
+    }
+    
+    private func setupBestTime() {
+        let bestTime = UserDefaults.standard.double(forKey: "BestSurvivalTime")
+        let minutes = Int(bestTime) / 60
+        let seconds = Int(bestTime) % 60
+        
+        bestTimeLabel.text = String(format: "Melhor Tempo: %02d:%02d", minutes, seconds)
+        bestTimeLabel.fontName = "AvenirNext-Bold"
+        bestTimeLabel.fontSize = 20
+        bestTimeLabel.fontColor = .systemYellow
+        bestTimeLabel.verticalAlignmentMode = .center
+        bestTimeLabel.zPosition = 10
+        addChild(bestTimeLabel)
     }
 
     private func setupPlayButton() {
@@ -63,11 +80,12 @@ final class MainMenuScene: SKScene {
 
     private func layoutMenu() {
         titleLabel.position = CGPoint(x: size.width / 2, y: size.height / 2 + 105)
+        bestTimeLabel.position = CGPoint(x: size.width / 2, y: size.height / 2 + 60)
 
-        playButton.position = CGPoint(x: size.width / 2, y: size.height / 2)
+        playButton.position = CGPoint(x: size.width / 2, y: size.height / 2 - 10)
         playLabel.position = playButton.position
 
-        quitButton.position = CGPoint(x: size.width / 2, y: size.height / 2 - 82)
+        quitButton.position = CGPoint(x: size.width / 2, y: size.height / 2 - 92)
         quitLabel.position = quitButton.position
     }
 
