@@ -1,6 +1,6 @@
 import SpriteKit
 
-final class EnemyNode: SKShapeNode {
+final class EnemyNode: SKSpriteNode {
 
     static let radius: CGFloat = 18
 
@@ -8,21 +8,10 @@ final class EnemyNode: SKShapeNode {
 
     init(health: CGFloat) {
         self.health = health
-        super.init()
 
-        path = CGPath(
-            ellipseIn: CGRect(
-                x: -Self.radius,
-                y: -Self.radius,
-                width: Self.radius * 2,
-                height: Self.radius * 2
-            ),
-            transform: nil
-        )
+        let texture = SKTexture(imageNamed: "enemy_basic")
+        super.init(texture: texture, color: .clear, size: CGSize(width: 44, height: 44))
 
-        fillColor = .systemGreen
-        strokeColor = .white
-        lineWidth = 2
         zPosition = 9
     }
 
@@ -42,14 +31,19 @@ final class EnemyNode: SKShapeNode {
     }
 
     private func flashDamage() {
-        let oldColor = fillColor
-        fillColor = .white
+        let oldColor = color
+        let oldBlend = colorBlendFactor
+
+        color = .white
+        colorBlendFactor = 0.85
 
         run(.sequence([
             .wait(forDuration: 0.08),
             .run { [weak self] in
-                self?.fillColor = oldColor
+                self?.color = oldColor
+                self?.colorBlendFactor = oldBlend
             }
         ]))
     }
 }
+
